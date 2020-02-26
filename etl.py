@@ -7,6 +7,8 @@ from luigi.format import MixedUnicodeBytesFormat
 
 
 class DownloadDatasetTask(luigi.Task):
+    """Downloads Yellow Taxi dataset for 2019-03"""
+
     def run(self):
         url = f'https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2019-03.csv'
         response = requests.get(url, stream=True)
@@ -22,12 +24,18 @@ class DownloadDatasetTask(luigi.Task):
 
 
 class ConvertToParquetTask(luigi.Task):
+    """Converts Yellow Taxi csv to parquet with filtering"""
+
     def requires(self):
         return DownloadDatasetTask()
 
     def run(self):
         df = pd.read_csv(self.input().open())
         df['tpep_pickup_datetime'] = pd.to_datetime(df['tpep_pickup_datetime'])
+        df = df[
+            (df['tpep_pickup_datetime'] >= '2019-03-01') &
+            (df['tpep_pickup_datetime'] < '2019-04-01')
+        ]
         df['pickup_date'] = df['tpep_pickup_datetime'].dt.strftime('%Y-%m-%d')
         df.to_parquet(self.output().path)
 
@@ -38,6 +46,7 @@ class ConvertToParquetTask(luigi.Task):
 
 
 class UploadToS3Task(luigi.Task):
+    """Uploads partitioned data by pickup_date to Amazon S3"""
     def requires(self):
         return ConvertToParquetTask()
 
